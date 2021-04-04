@@ -1,6 +1,7 @@
 {
   "enabled": false,
   "channel": 1234567890,
+  "publish": true,
   "latitude": 40.813616,
   "longitude": -96.7025955,
   "radius": 10,

@@ -210,8 +210,12 @@ class CovidVaccineBot(discord.Client):
 
                     if config['channel']:
                         channel = self.get_channel(config['channel'])
-                        print('sending notification to channel: ({channel})'.format(channel=config['channel']))
-                        await channel.send(self.message)
+                        message = await channel.send(self.message)
+                        print(f'message sent to channel: ({channel})'.format(channel=config['channel']))
+
+                        if 'publish' in config and config['publish']:
+                            await message.publish()
+                            print('message published')
                     else:
                         print('invalid config: missing discord channel')
 
