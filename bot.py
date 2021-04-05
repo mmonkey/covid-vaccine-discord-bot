@@ -7,6 +7,7 @@ from datetime import datetime
 from discord.ext import tasks
 from dotenv import load_dotenv
 from geopy import distance
+from timezonefinder import TimezoneFinder
 
 # Load environment variables
 load_dotenv()
@@ -25,6 +26,7 @@ class CovidVaccineBot(discord.Client):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.timezoneFinder = TimezoneFinder()
         self.message = ''
         self.hyvee_locations = []
         self.hyvee_availability = {}
@@ -150,30 +152,39 @@ class CovidVaccineBot(discord.Client):
             self.spotter_availability[location['properties']['id']] = location['properties']['appointments_available']
 
     def message_spotter_location(self, location):
-        name = '{name} {provider}'.format(
-            name=location['properties']['name'],
-            provider=location['properties']['provider_brand_name']
-        )
-        address = location['properties']['address']
-        city = location['properties']['city']
-        state = location['properties']['state']
-        zipcode = location['properties']['postal_code']
-        url = location['properties']['url']
-        self.message += f'\n\n{name}\n{address}\n{city}, {state} {zipcode}\n{url}'
+        if location['properties']['provider'] == 'cvs':
+            city = location['properties']['city']
+            state = location['properties']['state']
+            self.message += f'\n\nCVS\n{city}, {state}'
+        else:
+            name = '{name} {provider}'.format(
+                name=location['properties']['name'],
+                provider=location['properties']['provider_brand_name']
+            )
+            address = location['properties']['address']
+            city = location['properties']['city']
+            state = location['properties']['state']
+            zipcode = location['properties']['postal_code']
+            url = location['properties']['url']
+            self.message += f'\n\n{name}\n{address}\n{city}, {state} {zipcode}\n{url}'
 
     # Messaging header/footer
     def message_header(self):
         self.message = '@everyone :syringe: appointments available!'
 
-    def message_footer(self):
-        cst = pytz.timezone('US/Central')
+    def message_footer(self, latitude, longitude):
+        timezone = self.timezoneFinder.timezone_at(lng=longitude, lat=latitude)
+        cst = pytz.timezone(timezone)
         dt = datetime.now(cst)
-        timestamp = dt.strftime('%b %d, %Y at %I:%M:%S %p')
+        timestamp = dt.strftime('%b %d, %Y at %I:%M:%S %p %Z')
 
-        self.message += f'\n\nPosted {timestamp} CST'
+        self.message += f'\n\nPosted {timestamp}'
 
     @tasks.loop(seconds=30)
     async def check_for_vaccine_availability_task(self):
+        # clear the spotter cache
+        self.spotter_cache = {}
+
         for config in configs:
             enabled = config['enabled'] if 'enabled' in config else True
 
@@ -183,8 +194,6 @@ class CovidVaccineBot(discord.Client):
                     self.get_hyvee_vaccine_availability(config['latitude'], config['longitude'], config['radius'])
                     self.get_newly_available_hyvee_locations(is_test)
 
-                    # clear the spotter cache
-                    self.spotter_cache = {}
                     states = config['states'] if 'states' in config else ['NE']
                     self.get_spotter_api_vaccine_availability(
                         config['latitude'],
@@ -206,7 +215,7 @@ class CovidVaccineBot(discord.Client):
                     for location in self.newly_available_spotter_appointments:
                         self.message_spotter_location(location)
 
-                    self.message_footer()
+                    self.message_footer(config['latitude'], config['longitude'])
 
                     if config['channel']:
                         channel = self.get_channel(config['channel'])
