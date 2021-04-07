@@ -1,7 +1,7 @@
 version: '2'
 services:
-  covid-vaccine-bot:
+  covid-vaccine-discord-bot:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: covid-vaccine-bot
+    container_name: covid-vaccine-discord-bot
